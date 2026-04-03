@@ -46,16 +46,20 @@ for (int i = 0; i < NTAPS; i++) begin
 sr_real[i] <= '0;
 sr_img[i]  <= '0;
 end
-end else if(valid) begin
-sr_real[0]<=mult_real[0];
-sr_img[0]<=mult_img[0];
+ready<=1'b0;
+end else begin
+
+        ready <= valid; 
+         if(valid) begin
+           sr_real[0]<=mult_real[0];
+           sr_img[0]<=mult_img[0];
 for(int i=1; i<NTAPS; i++) begin
 sr_real[i]<=sr_real[i-1]+mult_real[i];
 sr_img[i]<=sr_img[i-1]+mult_img[i];
 end 
 end
 end
-     
+end   
 assign fir_out_real = (sr_real[NTAPS-1] + 36'sd16384) >>> 15;
 assign fir_out_img  = (sr_img[NTAPS-1]  + 36'sd16384) >>> 15;
        
