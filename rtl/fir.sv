@@ -6,8 +6,8 @@ input logic signed [15:0] x_real_in,
 input logic signed [15:0] x_img_in,
 input logic valid,
 
-output logic signed [15:0] fft_real[0:15],
-output logic signed [15:0] fft_img[0:15],
+output logic signed [15:0] fir_out_real,
+output logic signed [15:0] fir_out_img,
 output logic ready
 );
 
@@ -26,81 +26,37 @@ localparam int NTAPS = 16;
         h[14] = -16'sd177;  h[15] = -16'sd42;
     end
 
-    logic signed [15:0] sr_real [0:NTAPS-1];
-    logic signed [15:0] sr_img [0:NTAPS-1];
+    logic signed [35:0] sr_real [0:NTAPS-1];
+    logic signed [35:0] sr_img [0:NTAPS-1];
     
-    always_ff @(posedge clk) begin
-    if(!rst)begin
-    for (int i = 0; i < NTAPS; i++) begin
-    sr_real[i] <= '0;
-    sr_img[i]  <= '0;
-    end
-    end else if(valid) begin
-    for(int i=NTAPS-1; i>0; i--) begin
-    sr_real[i]<=sr_real[i-1];
-    sr_img[i]<=sr_img[i-1];
-    end 
-    sr_real[0]<=x_real_in;
-    sr_img[0]<=x_img_in;
-    end
-    end
-    
-    logic signed [35:0] acc_real, acc_img;
-    
-    always_comb begin
-    acc_real = '0;
-    acc_img = '0;
-     for(int k=0; k<NTAPS; k++) begin
-     acc_real+=sr_real[k]*h[k];
-     acc_img+=sr_img[k]*h[k];
-     end
-     end
+    logic signed [31:0] mult_real [0:NTAPS-1];
+    logic signed [31:0] mult_img  [0:NTAPS-1];
+
+always_comb begin
+for(int i=0; i<NTAPS; i++)begin
+mult_real[i]=x_real_in*h[i];
+mult_img[i]=x_img_in*h[i];
+end
+end
+
+
+always_ff @(posedge clk) begin
+if(rst)begin
+for (int i = 0; i < NTAPS; i++) begin
+sr_real[i] <= '0;
+sr_img[i]  <= '0;
+end
+end else if(valid) begin
+sr_real[0]<=mult_real[0];
+sr_img[0]<=mult_img[0];
+for(int i=1; i<NTAPS; i++) begin
+sr_real[i]<=sr_real[i-1]+mult_real[i];
+sr_img[i]<=sr_img[i-1]+mult_img[i];
+end 
+end
+end
      
-      logic signed [15:0] fir_out_real, fir_out_img;
-      assign fir_out_real = (acc_real + 36'sd16384) >>> 15;
-      assign fir_out_img  = (acc_img  + 36'sd16384) >>> 15;
-      
-       logic signed [15:0] f_real [0:NTAPS-1];
-       logic signed [15:0] f_img  [0:NTAPS-1];
-       logic [3:0]         frame_idx;
-       logic               frame_ready;
+assign fir_out_real = (sr_real[NTAPS-1] + 36'sd16384) >>> 15;
+assign fir_out_img  = (sr_img[NTAPS-1]  + 36'sd16384) >>> 15;
        
-       always_ff @(posedge clk) begin
-       if(rst)begin
-       frame_idx<='0;
-       frame_ready<=1'b0;
-       for (int i = 0; i < NTAPS; i++) begin
-                f_real[i] <= '0;
-                f_img[i]  <= '0;
-            end
-       end else begin
-       frame_ready<=1'b0;
-       if(valid) begin
-       f_real[frame_idx]<=fir_out_real;
-       f_img[frame_idx]<=fir_out_img;
-       if(frame_idx==4'd15)begin
-       frame_idx<='0;
-       frame_ready<=1'b1;
-       end else begin
-       frame_idx <= frame_idx + 1'b1;
-       end
-       end
-       end
-       end
-       
-       always_ff @(posedge clk) begin
-       if(rst) begin
-       for (int i = 0; i < NTAPS; i++) begin
-                fft_real[i] <= '0;
-                fft_img[i]  <= '0;
-       end 
-       end else if(frame_ready) begin
-       for (int i = 0; i < NTAPS; i++) begin
-       fft_real[i]<=f_real[i];
-       fft_img[i]<=f_img[i];
-       end
-       end
-       end
-       assign ready = frame_ready;
-    
 endmodule

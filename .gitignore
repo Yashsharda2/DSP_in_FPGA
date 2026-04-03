@@ -7,4 +7,6 @@ work_pt/
 *.xml
 *.peri.xml
 .lock
+t.sdc
+netlist.png
 .sdc
